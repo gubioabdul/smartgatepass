@@ -7,6 +7,7 @@ import 'package:smartgatepass/services/gate_hardware.dart';
 
 class MemoryRepository implements VehicleRepository {
   final records = <VehicleLog>[];
+  
   @override
   Future<List<VehicleLog>> activeRecords({String query = ''}) async => records
       .where(
@@ -16,6 +17,18 @@ class MemoryRepository implements VehicleRepository {
                 r.ticketId.contains(query)),
       )
       .toList();
+
+  @override
+  Future<List<VehicleLog>> allRecords({String query = ''}) async {
+    return records;
+  }
+
+  @override
+  Future<Map<String, int>> getDashboardStats() async {
+    final active = records.where((r) => r.isActive).length;
+    return {'active': active, 'total': records.length};
+  }
+
   @override
   Future<VehicleLog?> byTicket(String id) async {
     for (final record in records) {
@@ -27,12 +40,13 @@ class MemoryRepository implements VehicleRepository {
   @override
   Future<VehicleLog> registerEntry(String plate) async {
     final normalized = normalizePlate(plate);
-    if (records.any((r) => r.isActive && r.plateNumber == normalized))
+    if (records.any((r) => r.isActive && r.plateNumber == normalized)) {
       throw const GateException('Duplicate entry');
+    }
     final record = VehicleLog(
-      ticketId: '98765432-1234-4123-8123-123456789012',
+      ticketId: 'SGP-261031-120000',
       plateNumber: normalized,
-      entryTimestamp: DateTime(2026, 9, 25, 12),
+      entryTimestamp: DateTime(2026, 10, 31, 12),
     );
     records.add(record);
     return record;
@@ -41,13 +55,14 @@ class MemoryRepository implements VehicleRepository {
   @override
   Future<VehicleLog> recordExit(String id, String plate) async {
     final record = (await byTicket(id))!;
-    if (!record.isActive || normalizePlate(plate) != record.plateNumber)
+    if (!record.isActive || normalizePlate(plate) != record.plateNumber) {
       throw const GateException('Invalid exit');
+    }
     final closed = VehicleLog(
       ticketId: id,
       plateNumber: record.plateNumber,
       entryTimestamp: record.entryTimestamp,
-      exitTimestamp: DateTime(2026, 9, 25, 13),
+      exitTimestamp: DateTime(2026, 10, 31, 13),
     );
     records[records.indexOf(record)] = closed;
     return closed;
@@ -85,6 +100,12 @@ Future<void> tapVisible(WidgetTester tester, Finder finder) async {
   await tester.pumpAndSettle();
 }
 
+Future<void> login(WidgetTester tester) async {
+  await tester.enterText(find.byType(TextField).at(0), 'admin');
+  await tester.enterText(find.byType(TextField).at(1), '1234');
+  await tapVisible(tester, find.text('Login'));
+}
+
 void main() {
   testWidgets(
     'manual entry, print failure, and verified exit preserve record lifecycle',
@@ -98,17 +119,21 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      
+      // NEW: Login first
+      await login(tester);
+      
       expect(find.text('SmartGatePass'), findsOneWidget);
       await tapVisible(tester, find.text('Vehicle Entry'));
       await tester.enterText(find.byType(TextFormField), 'abc-123de');
-      await tapVisible(tester, find.text('Save entry & create pass'));
+      await tapVisible(tester, find.text('Save & Print'));
       expect(repository.records, isEmpty);
       expect(
         find.text('Verify the plate against the vehicle before saving.'),
         findsOneWidget,
       );
       await tapVisible(tester, find.byType(CheckboxListTile));
-      await tapVisible(tester, find.text('Save entry & create pass'));
+      await tapVisible(tester, find.text('Save & Print'));
       expect(repository.records, hasLength(1));
       expect(find.text('ABC123DE'), findsOneWidget);
       await tapVisible(tester, find.text('Print gate pass'));
@@ -119,19 +144,13 @@ void main() {
       );
       expect(repository.records.single.isActive, isTrue);
       await tapVisible(tester, find.text('Verify vehicle exit'));
-      await tester.enterText(find.byType(TextField), 'WRONG123');
-      await tapVisible(tester, find.byType(CheckboxListTile));
-      await tapVisible(tester, find.text('Record exit & close pass'));
-      expect(
-        find.text('Plate does not match. Check the vehicle before proceeding.'),
-        findsOneWidget,
-      );
-      expect(repository.records.single.isActive, isTrue);
-      await tester.enterText(find.byType(TextField), 'ABC123DE');
+      
+      // NEW: No text field on exit page anymore
       await tapVisible(tester, find.byType(CheckboxListTile));
       await tapVisible(tester, find.text('Record exit & close pass'));
       await tapVisible(tester, find.text('Cancel'));
       expect(repository.records.single.isActive, isTrue);
+      
       await tapVisible(tester, find.text('Record exit & close pass'));
       await tapVisible(tester, find.text('Confirm exit'));
       expect(repository.records.single.isActive, isFalse);
@@ -152,6 +171,10 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      
+      // NEW: Login first
+      await login(tester);
+      
       await tapVisible(tester, find.text('Vehicle Entry'));
       await tapVisible(tester, find.text('Capture plate with camera'));
       expect(
@@ -161,7 +184,7 @@ void main() {
             .text,
         'ABC123DE',
       );
-      await tapVisible(tester, find.text('Save entry & create pass'));
+      await tapVisible(tester, find.text('Save & Print'));
       expect(repository.records, isEmpty);
       expect(tester.takeException(), isNull);
     },
@@ -182,6 +205,10 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    
+    // NEW: Login first
+    await login(tester);
+    
     expect(tester.takeException(), isNull);
   });
 }

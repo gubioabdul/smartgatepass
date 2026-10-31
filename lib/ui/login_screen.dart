@@ -13,15 +13,15 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _userController = TextEditingController();
-  final _pinController = TextEditingController();
+  final _passwordController = TextEditingController();
   String? _error;
 
   void _submit() {
     final username = _userController.text.trim().toLowerCase();
-    final pin = _pinController.text.trim();
+    final password = _passwordController.text.trim();
 
     // Hardcoded credentials for FYP prototype
-    if (username == 'admin' && pin == '1234') {
+    if (username == 'admin' && password == '1234') {
       widget.onLogin();
     } else {
       setState(() => _error = 'Invalid credentials. Hint: admin / 1234');
@@ -31,7 +31,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void dispose() {
     _userController.dispose();
-    _pinController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
@@ -49,7 +49,11 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 20),
               const Text(
                 'SmartGatePass',
-                style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 8),
               const Text(
@@ -57,7 +61,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 style: TextStyle(color: Colors.white70, fontSize: 16),
               ),
               const SizedBox(height: 40),
-              
+
               // Username Field
               TextField(
                 controller: _userController,
@@ -65,9 +69,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 decoration: InputDecoration(
                   hintText: 'Username',
                   hintStyle: const TextStyle(color: Colors.white30),
-                  prefixIcon: const Icon(Icons.person_outline, color: Colors.white54),
+                  prefixIcon:
+                      const Icon(Icons.person_outline, color: Colors.white54),
                   filled: true,
-                  fillColor: Colors.white.withOpacity(0.1),
+                  fillColor: Colors.white.withValues(alpha: 0.1),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
                     borderSide: BorderSide.none,
@@ -75,19 +80,27 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              
-              // PIN Field
+
+              // Password Field
               TextField(
-                controller: _pinController,
-                keyboardType: TextInputType.number,
+                controller: _passwordController,
                 obscureText: true,
-                style: const TextStyle(fontSize: 20, letterSpacing: 4, color: Colors.white),
+                style: const TextStyle(
+                  fontSize: 20,
+                  letterSpacing: 4,
+                  color: Colors.white,
+                ),
                 decoration: InputDecoration(
                   hintText: 'Password',
-                  hintStyle: const TextStyle(color: Colors.white30, letterSpacing: 1, fontSize: 16),
-                  prefixIcon: const Icon(Icons.lock_outline, color: Colors.white54),
+                  hintStyle: const TextStyle(
+                    color: Colors.white30,
+                    letterSpacing: 1,
+                    fontSize: 16,
+                  ),
+                  prefixIcon:
+                      const Icon(Icons.lock_outline, color: Colors.white54),
                   filled: true,
-                  fillColor: Colors.white.withOpacity(0.1),
+                  fillColor: Colors.white.withValues(alpha: 0.1),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
                     borderSide: BorderSide.none,
@@ -97,7 +110,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 onSubmitted: (_) => _submit(),
               ),
               const SizedBox(height: 24),
-              
+
               // Login Button
               SizedBox(
                 width: double.infinity,
@@ -105,10 +118,16 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: FilledButton(
                   style: FilledButton.styleFrom(
                     backgroundColor: teal,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                   ),
                   onPressed: _submit,
-                  child: const Text('Login', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  child: const Text(
+                    'Login',
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
             ],
