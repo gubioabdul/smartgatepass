@@ -1,6 +1,6 @@
+import 'package:intl/intl.dart'; // <-- ADDED for DateFormat
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
-import 'package:uuid/uuid.dart';
 
 import '../domain/vehicle_log.dart';
 
@@ -89,11 +89,18 @@ class SqliteVehicleRepository implements VehicleRepository {
           'This vehicle already has an active pass. Search the record to reprint it.',
         );
       }
+      
+      // --- UPDATED ID GENERATION ---
+      final now = _now();
+      final formattedId = 'SGP-${DateFormat('yyMMdd').format(now)}-${DateFormat('HHmmss').format(now)}';
+      
       final record = VehicleLog(
-        ticketId: const Uuid().v4(),
+        ticketId: formattedId,
         plateNumber: normalized,
-        entryTimestamp: _now(),
+        entryTimestamp: now,
       );
+      // -----------------------------
+
       await txn.insert('Vehicle_Log', {
         'Ticket_ID': record.ticketId,
         'Plate_Number': record.plateNumber,
