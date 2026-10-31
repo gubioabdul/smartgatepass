@@ -447,7 +447,7 @@ class _EntryPageState extends State<EntryPage> {
     }
   }
 
-  Future<void> _save() async {
+  Future<void> _save({bool autoPrint = false}) async {
     if (!_form.currentState!.validate()) return;
     if (!_verified) {
       setState(
@@ -462,15 +462,21 @@ class _EntryPageState extends State<EntryPage> {
     try {
       final record = await widget.repository.registerEntry(_plate.text);
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(
-          builder: (_) => PassPage(
-            record: record,
-            repository: widget.repository,
-            printer: widget.printer,
+      
+      if (autoPrint) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute<void>(
+            builder: (_) => PassPage(
+              record: record,
+              repository: widget.repository,
+              printer: widget.printer,
+            ),
           ),
-        ),
-      );
+        );
+      } else {
+        showMessage(context, 'Entry saved for ${record.plateNumber}.');
+        Navigator.pop(context);
+      }
     } catch (error) {
       if (mounted) {
         setState(() {
@@ -587,10 +593,24 @@ class _EntryPageState extends State<EntryPage> {
                   ),
                 ),
               const SizedBox(height: 20),
-              FilledButton.icon(
-                onPressed: _busy ? null : _save,
-                icon: const Icon(Icons.confirmation_number_outlined),
-                label: const Text('Save entry & create pass'),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _busy ? null : () => _save(autoPrint: false),
+                      icon: const Icon(Icons.save_outlined),
+                      label: const Text('Save Only'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: _busy ? null : () => _save(autoPrint: true),
+                      icon: const Icon(Icons.print_outlined),
+                      label: const Text('Save & Print'),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 16),
               const Text(
@@ -1028,23 +1048,10 @@ class ExitPage extends StatefulWidget {
 }
 
 class _ExitPageState extends State<ExitPage> {
-  final _plate = TextEditingController();
   bool _verified = false, _busy = false;
   String? _error;
-  @override
-  void dispose() {
-    _plate.dispose();
-    super.dispose();
-  }
 
   Future<void> _close() async {
-    if (normalizePlate(_plate.text) != widget.record.plateNumber) {
-      setState(
-        () => _error =
-            'Plate does not match. Check the vehicle before proceeding.',
-      );
-      return;
-    }
     if (!_verified) {
       setState(
         () => _error = 'Confirm that you physically checked the vehicle.',
@@ -1078,7 +1085,7 @@ class _ExitPageState extends State<ExitPage> {
     try {
       final closed = await widget.repository.recordExit(
         widget.record.ticketId,
-        _plate.text,
+        widget.record.plateNumber,
       );
       if (!mounted) return;
       showMessage(
@@ -1126,27 +1133,16 @@ class _ExitPageState extends State<ExitPage> {
               style: const TextStyle(color: Colors.black54, fontSize: 12),
             ),
             const SizedBox(height: 28),
-            TextField(
-              controller: _plate,
-              enabled: !_busy,
-              textCapitalization: TextCapitalization.characters,
-              onChanged: (_) => setState(() {
-                _verified = false;
-                _error = null;
-              }),
-              decoration: const InputDecoration(
-                labelText: 'Type the plate on the vehicle',
-                prefixIcon: Icon(Icons.directions_car_outlined),
-              ),
-            ),
-            const SizedBox(height: 14),
             CheckboxListTile(
               contentPadding: EdgeInsets.zero,
               controlAffinity: ListTileControlAffinity.leading,
               value: _verified,
               onChanged: _busy
                   ? null
-                  : (v) => setState(() => _verified = v ?? false),
+                  : (v) => setState(() {
+                        _verified = v ?? false;
+                        _error = null;
+                      }),
               title: const Text(
                 'I physically checked the vehicle and its plate.',
               ),
