@@ -1,4 +1,4 @@
-import 'package:intl/intl.dart'; // <-- DateFormat
+import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
@@ -6,10 +6,11 @@ import '../domain/vehicle_log.dart';
 
 abstract class VehicleRepository {
   Future<List<VehicleLog>> activeRecords({String query = ''});
+  Future<List<VehicleLog>> allRecords({String query = ''}); // <-- NEW
   Future<VehicleLog?> byTicket(String ticketId);
   Future<VehicleLog> registerEntry(String plate);
   Future<VehicleLog> recordExit(String ticketId, String verifiedPlate);
-  Future<Map<String, int>> getDashboardStats(); // <-- ADDED
+  Future<Map<String, int>> getDashboardStats();
   Future<void> close();
 }
 
@@ -64,6 +65,17 @@ class SqliteVehicleRepository implements VehicleRepository {
   }
 
   @override
+  Future<List<VehicleLog>> allRecords({String query = ''}) async {
+    final rows = await db.query(
+      'Vehicle_Log',
+      where: "(instr(Plate_Number, ?) > 0 OR instr(upper(Ticket_ID), ?) > 0)",
+      whereArgs: [normalizePlate(query), query.trim().toUpperCase()],
+      orderBy: 'Entry_Timestamp DESC',
+    );
+    return rows.map(VehicleLog.fromMap).toList();
+  }
+
+  @override
   Future<VehicleLog?> byTicket(String ticketId) async {
     final rows = await db.query(
       'Vehicle_Log',
@@ -90,7 +102,6 @@ class SqliteVehicleRepository implements VehicleRepository {
           'This vehicle already has an active pass. Search the record to reprint it.',
         );
       }
-      
       final now = _now();
       final formattedId = 'SGP-${DateFormat('yyMMdd').format(now)}-${DateFormat('HHmmss').format(now)}';
       
@@ -99,7 +110,6 @@ class SqliteVehicleRepository implements VehicleRepository {
         plateNumber: normalized,
         entryTimestamp: now,
       );
-
       await txn.insert('Vehicle_Log', {
         'Ticket_ID': record.ticketId,
         'Plate_Number': record.plateNumber,
@@ -157,7 +167,6 @@ class SqliteVehicleRepository implements VehicleRepository {
     });
   }
 
-  // 👇 THIS IS THE NEW METHOD
   @override
   Future<Map<String, int>> getDashboardStats() async {
     final activeRes = await db.rawQuery("SELECT COUNT(*) FROM Vehicle_Log WHERE Status = 'ACTIVE'");

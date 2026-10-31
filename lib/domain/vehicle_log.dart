@@ -10,7 +10,21 @@ class VehicleLog {
   final String plateNumber;
   final DateTime entryTimestamp;
   final DateTime? exitTimestamp;
+  
   bool get isActive => exitTimestamp == null;
+
+  // NEW: Calculate duration
+  String get durationString {
+    if (exitTimestamp == null) return 'Ongoing';
+    final diff = exitTimestamp!.difference(entryTimestamp);
+    final hours = diff.inHours;
+    final minutes = diff.inMinutes.remainder(60);
+    
+    if (hours > 0) {
+      return '${hours}h ${minutes}m';
+    }
+    return '${minutes}m';
+  }
 
   factory VehicleLog.fromMap(Map<String, Object?> row) => VehicleLog(
     ticketId: row['Ticket_ID'] as String,

@@ -36,7 +36,7 @@ class GateHome extends StatefulWidget {
 
 class _GateHomeState extends State<GateHome> {
   List<VehicleLog> _records = [];
-  Map<String, int> _stats = {'active': 0, 'total': 0}; // NEW
+  Map<String, int> _stats = {'active': 0, 'total': 0};
   bool _loading = true;
   String? _error;
 
@@ -59,11 +59,11 @@ class _GateHomeState extends State<GateHome> {
   Future<void> _refresh() async {
     try {
       final records = await widget.repository.activeRecords();
-      final stats = await widget.repository.getDashboardStats(); // NEW
+      final stats = await widget.repository.getDashboardStats();
       if (mounted) {
         setState(() {
           _records = records;
-          _stats = stats; // NEW
+          _stats = stats;
           _loading = false;
           _error = null;
         });
@@ -184,7 +184,6 @@ class _GateHomeState extends State<GateHome> {
                     ),
                   ),
                   const SizedBox(height: 22),
-                  // NEW DASHBOARD ROW
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -284,7 +283,6 @@ class _GateHomeState extends State<GateHome> {
   );
 }
 
-// NEW WIDGET FOR STATS
 class _StatItem extends StatelessWidget {
   const _StatItem({required this.value, required this.label, required this.color});
   final String value;
@@ -404,20 +402,41 @@ class RecordTile extends StatelessWidget {
     margin: const EdgeInsets.only(bottom: 8),
     child: ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      leading: const CircleAvatar(
-        backgroundColor: Color(0xFFE4F1EC),
-        foregroundColor: teal,
-        child: Icon(Icons.directions_car_outlined),
+      leading: CircleAvatar(
+        backgroundColor: record.isActive ? const Color(0xFFE4F1EC) : Colors.grey.shade200,
+        foregroundColor: record.isActive ? teal : Colors.grey.shade700,
+        child: Icon(record.isActive ? Icons.directions_car_outlined : Icons.check_circle_outline),
       ),
       title: Text(
         record.plateNumber,
         style: const TextStyle(fontWeight: FontWeight.w700, letterSpacing: 1),
       ),
-      subtitle: Text(
-        'Entered ${formatTimestamp(record.entryTimestamp)}',
-        style: const TextStyle(fontSize: 12),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Entry: ${formatTimestamp(record.entryTimestamp)}', style: const TextStyle(fontSize: 11)),
+          if (!record.isActive)
+            Text(
+              'Exit: ${formatTimestamp(record.exitTimestamp!)} | ${record.durationString}',
+              style: const TextStyle(fontSize: 11, color: Colors.grey),
+            ),
+        ],
       ),
-      trailing: const Icon(Icons.chevron_right),
+      trailing: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: record.isActive ? const Color(0xFFE4F1EC) : Colors.grey.shade200,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          record.isActive ? 'INSIDE' : 'EXITED',
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+            color: record.isActive ? teal : Colors.grey.shade700,
+          ),
+        ),
+      ),
       onTap: onTap,
     ),
   );
@@ -701,7 +720,8 @@ class _RecordsPageState extends State<RecordsPage> {
       _error = null;
     });
     try {
-      final records = await widget.repository.activeRecords(query: _query.text);
+      // Fetch ALL records so exited vehicles still appear
+      final records = await widget.repository.allRecords(query: _query.text);
       if (mounted && request == _request) {
         setState(() {
           _records = records;
@@ -719,17 +739,56 @@ class _RecordsPageState extends State<RecordsPage> {
   }
 
   Future<void> _open(VehicleLog record) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => widget.exitMode
-            ? ExitPage(record: record, repository: widget.repository)
-            : PassPage(
-                record: record,
-                repository: widget.repository,
-                printer: widget.printer,
+    if (widget.exitMode) {
+      if (!record.isActive) {
+        showMessage(context, 'This vehicle already exited at ${formatTimestamp(record.exitTimestamp!)}.');
+        return;
+      }
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => ExitPage(record: record, repository: widget.repository),
+        ),
+      );
+    } else {
+      if (record.isActive) {
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => PassPage(
+              record: record,
+              repository: widget.repository,
+              printer: widget.printer,
+            ),
+          ),
+        );
+      } else {
+        // Show details of a closed record
+        await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(record.plateNumber),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Ticket: ${record.ticketId}'),
+                const SizedBox(height: 8),
+                Text('Entry: ${formatTimestamp(record.entryTimestamp)}'),
+                const SizedBox(height: 8),
+                Text('Exit: ${formatTimestamp(record.exitTimestamp!)}'),
+                const SizedBox(height: 8),
+                Text('Duration: ${record.durationString}', style: const TextStyle(fontWeight: FontWeight.bold, color: teal)),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close'),
               ),
-      ),
-    );
+            ],
+          ),
+        );
+      }
+    }
     await _load();
   }
 
@@ -769,7 +828,7 @@ class _RecordsPageState extends State<RecordsPage> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: Text(widget.exitMode ? 'Vehicle Exit' : 'Active Records'),
+      title: Text(widget.exitMode ? 'Vehicle Exit' : 'Vehicle Records'),
     ),
     body: SafeArea(
       child: Column(
@@ -839,7 +898,7 @@ class _RecordsPageState extends State<RecordsPage> {
                         if (_records.isEmpty)
                           const InfoPanel(
                             icon: Icons.search_off,
-                            text: 'No active records found. Check the plate or ticket ID. Closed passes are not listed here.',
+                            text: 'No records found. Check the plate or ticket ID.',
                           ),
                         ..._records.map(
                           (r) => RecordTile(record: r, onTap: () => _open(r)),
