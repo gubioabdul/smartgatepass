@@ -1,6 +1,7 @@
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart'; // <-- Needed for DateFormat
 import 'package:permission_handler/permission_handler.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 
@@ -126,39 +127,35 @@ class BluetoothPassPrinter implements PassPrinter {
   }
 }
 
-List<int> ticketBytes(VehicleLog record, Generator generator) => [
-  ...generator.reset(),
-  ...generator.text(
-    'SMARTGATEPASS',
-    styles: const PosStyles(align: PosAlign.center, bold: true),
-  ),
-  ...generator.text(
-    'VEHICLE ENTRY PASS',
-    styles: const PosStyles(align: PosAlign.center),
-  ),
-  ...generator.hr(),
-  ...generator.text(
-    record.plateNumber,
-    styles: const PosStyles(
-      align: PosAlign.center,
-      bold: true,
-      height: PosTextSize.size2,
-    ),
-  ),
-  ...generator.text('Entry: ${formatTimestamp(record.entryTimestamp)}'),
-  ...generator.qrcode(record.ticketId, size: QRSize.size6),
-  ...generator.text(
-    'Ticket ID:',
-    styles: const PosStyles(align: PosAlign.center),
-  ),
-  ...generator.text(
-    record.ticketId,
-    styles: const PosStyles(align: PosAlign.center),
-  ),
-  ...generator.hr(),
-  ...generator.text(
-    'Keep this pass for vehicle exit.',
-    styles: const PosStyles(align: PosAlign.center),
-  ),
-  ...generator.feed(3),
-];
+List<int> ticketBytes(VehicleLog record, Generator generator) {
+  final dateStr = DateFormat('dd-MMM-yy').format(record.entryTimestamp);
+  final timeStr = DateFormat('hh:mm a').format(record.entryTimestamp);
+
+  return [
+    ...generator.reset(),
+    // 1. Compact Header
+    ...generator.text('SMART GATE PASS',
+        styles: const PosStyles(
+            align: PosAlign.center, bold: true, height: PosTextSize.size2)),
+    ...generator.text('VEHICLE ENTRY',
+        styles: const PosStyles(align: PosAlign.center, bold: true)),
+    ...generator.hr(), // Single clean line
+
+    // 2. Data Fields (Compact)
+    ...generator.text('Ticket : ${record.ticketId}', styles: const PosStyles(fontType: PosFontType.fontB)),
+    ...generator.text('Plate  : ${record.plateNumber}', styles: const PosStyles(fontType: PosFontType.fontB)),
+    ...generator.text('Time   : $dateStr | $timeStr'),
+    
+    // 3. Smaller QR Code (size4 instead of size6)
+    ...generator.qrcode(record.ticketId, size: QRSize.size4),
+    
+    // 4. Compact Footer
+    ...generator.text('Scan at exit gate.',
+        styles: const PosStyles(align: PosAlign.center)),
+    ...generator.hr(),
+    
+    // 5. Feed only 1 line and cut
+    ...generator.feed(1),
+    ...generator.cut(),
+  ];
+}

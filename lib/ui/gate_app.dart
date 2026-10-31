@@ -36,6 +36,7 @@ class GateHome extends StatefulWidget {
 
 class _GateHomeState extends State<GateHome> {
   List<VehicleLog> _records = [];
+  Map<String, int> _stats = {'active': 0, 'total': 0}; // NEW
   bool _loading = true;
   String? _error;
 
@@ -58,9 +59,11 @@ class _GateHomeState extends State<GateHome> {
   Future<void> _refresh() async {
     try {
       final records = await widget.repository.activeRecords();
+      final stats = await widget.repository.getDashboardStats(); // NEW
       if (mounted) {
         setState(() {
           _records = records;
+          _stats = stats; // NEW
           _loading = false;
           _error = null;
         });
@@ -181,23 +184,24 @@ class _GateHomeState extends State<GateHome> {
                     ),
                   ),
                   const SizedBox(height: 22),
+                  // NEW DASHBOARD ROW
                   Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        _loading || _error != null ? '—' : '${_records.length}',
-                        style: const TextStyle(
-                          color: Color(0xFFF4D57A),
-                          fontSize: 46,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      _StatItem(
+                        value: _loading ? '—' : '${_stats['active']}',
+                        label: 'Inside',
+                        color: const Color(0xFFF4D57A),
                       ),
-                      const Padding(
-                        padding: EdgeInsets.only(left: 12, bottom: 10),
-                        child: Text(
-                          'vehicles currently inside',
-                          style: TextStyle(color: Colors.white70),
-                        ),
+                      _StatItem(
+                        value: _loading ? '—' : '${_stats['total']}',
+                        label: 'Total Today',
+                        color: Colors.white,
+                      ),
+                      _StatItem(
+                        value: _loading ? '—' : '${_stats['total']! - _stats['active']!}',
+                        label: 'Exited',
+                        color: const Color(0xFF9CE5CD),
                       ),
                     ],
                   ),
@@ -278,6 +282,35 @@ class _GateHomeState extends State<GateHome> {
       ),
     ),
   );
+}
+
+// NEW WIDGET FOR STATS
+class _StatItem extends StatelessWidget {
+  const _StatItem({required this.value, required this.label, required this.color});
+  final String value;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            color: color,
+            fontSize: 32,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        Text(
+          label,
+          style: const TextStyle(color: Colors.white70, fontSize: 12),
+        ),
+      ],
+    );
+  }
 }
 
 class ActionTile extends StatelessWidget {

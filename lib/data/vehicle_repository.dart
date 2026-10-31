@@ -1,4 +1,4 @@
-import 'package:intl/intl.dart'; // <-- ADDED for DateFormat
+import 'package:intl/intl.dart'; // <-- DateFormat
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
@@ -9,6 +9,7 @@ abstract class VehicleRepository {
   Future<VehicleLog?> byTicket(String ticketId);
   Future<VehicleLog> registerEntry(String plate);
   Future<VehicleLog> recordExit(String ticketId, String verifiedPlate);
+  Future<Map<String, int>> getDashboardStats(); // <-- ADDED
   Future<void> close();
 }
 
@@ -90,7 +91,6 @@ class SqliteVehicleRepository implements VehicleRepository {
         );
       }
       
-      // --- UPDATED ID GENERATION ---
       final now = _now();
       final formattedId = 'SGP-${DateFormat('yyMMdd').format(now)}-${DateFormat('HHmmss').format(now)}';
       
@@ -99,7 +99,6 @@ class SqliteVehicleRepository implements VehicleRepository {
         plateNumber: normalized,
         entryTimestamp: now,
       );
-      // -----------------------------
 
       await txn.insert('Vehicle_Log', {
         'Ticket_ID': record.ticketId,
@@ -156,6 +155,18 @@ class SqliteVehicleRepository implements VehicleRepository {
         exitTimestamp: exit,
       );
     });
+  }
+
+  // 👇 THIS IS THE NEW METHOD
+  @override
+  Future<Map<String, int>> getDashboardStats() async {
+    final activeRes = await db.rawQuery("SELECT COUNT(*) FROM Vehicle_Log WHERE Status = 'ACTIVE'");
+    final totalRes = await db.rawQuery("SELECT COUNT(*) FROM Vehicle_Log");
+    
+    return {
+      'active': Sqflite.firstIntValue(activeRes) ?? 0,
+      'total': Sqflite.firstIntValue(totalRes) ?? 0,
+    };
   }
 
   @override
