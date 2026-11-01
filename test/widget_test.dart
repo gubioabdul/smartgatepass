@@ -110,6 +110,12 @@ void main() {
   testWidgets(
     'manual entry, print failure, and verified exit preserve record lifecycle',
     (tester) async {
+      // FIX: Use a tall phone-sized surface so all buttons are visible
+      tester.view.physicalSize = const Size(400, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
       final repository = MemoryRepository();
       await tester.pumpWidget(
         SmartGatePassApp(
@@ -120,7 +126,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       
-      // NEW: Login first
+      // Login
       await login(tester);
       
       expect(find.text('SmartGatePass'), findsOneWidget);
@@ -136,6 +142,8 @@ void main() {
       await tapVisible(tester, find.text('Save & Print'));
       expect(repository.records, hasLength(1));
       expect(find.text('ABC123DE'), findsOneWidget);
+      
+      // Try to print (should fail)
       await tapVisible(tester, find.text('Print gate pass'));
       await tapVisible(tester, find.text('Test printer'));
       expect(
@@ -143,10 +151,13 @@ void main() {
         findsOneWidget,
       );
       expect(repository.records.single.isActive, isTrue);
+      
+      // Exit Vehicle (no text field, just checkbox)
       await tapVisible(tester, find.text('Verify vehicle exit'));
       
-      // NEW: No text field on exit page anymore
-      await tapVisible(tester, find.byType(CheckboxListTile));
+      await tester.tap(find.byType(Checkbox)); 
+      await tester.pumpAndSettle();
+      
       await tapVisible(tester, find.text('Record exit & close pass'));
       await tapVisible(tester, find.text('Cancel'));
       expect(repository.records.single.isActive, isTrue);
@@ -162,6 +173,11 @@ void main() {
   testWidgets(
     'OCR fills a suggestion but still requires officer verification',
     (tester) async {
+      tester.view.physicalSize = const Size(400, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
       final repository = MemoryRepository();
       await tester.pumpWidget(
         SmartGatePassApp(
@@ -172,7 +188,6 @@ void main() {
       );
       await tester.pumpAndSettle();
       
-      // NEW: Login first
       await login(tester);
       
       await tapVisible(tester, find.text('Vehicle Entry'));
@@ -206,7 +221,6 @@ void main() {
     );
     await tester.pumpAndSettle();
     
-    // NEW: Login first
     await login(tester);
     
     expect(tester.takeException(), isNull);

@@ -1,12 +1,13 @@
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
+import 'package:uuid/uuid.dart'; // Added for unique ID generation
 
 import '../domain/vehicle_log.dart';
 
 abstract class VehicleRepository {
   Future<List<VehicleLog>> activeRecords({String query = ''});
-  Future<List<VehicleLog>> allRecords({String query = ''}); // <-- NEW
+  Future<List<VehicleLog>> allRecords({String query = ''});
   Future<VehicleLog?> byTicket(String ticketId);
   Future<VehicleLog> registerEntry(String plate);
   Future<VehicleLog> recordExit(String ticketId, String verifiedPlate);
@@ -103,7 +104,8 @@ class SqliteVehicleRepository implements VehicleRepository {
         );
       }
       final now = _now();
-      final formattedId = 'SGP-${DateFormat('yyMMdd').format(now)}-${DateFormat('HHmmss').format(now)}';
+      // FIX: Appended 4 random UUID characters to guarantee uniqueness
+      final formattedId = 'SGP-${DateFormat('yyMMdd').format(now)}-${DateFormat('HHmmss').format(now)}${const Uuid().v4().substring(0, 4).toUpperCase()}';
       
       final record = VehicleLog(
         ticketId: formattedId,

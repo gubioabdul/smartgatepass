@@ -122,12 +122,16 @@ class _GateHomeState extends State<GateHome> {
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       title: const Row(
+        mainAxisSize: MainAxisSize.min, // FIX: Prevents infinite width
         children: [
           Icon(Icons.shield_outlined, color: teal),
           SizedBox(width: 10),
-          Text(
-            'SmartGatePass',
-            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 22),
+          Flexible( // FIX: Prevents overflow
+            child: Text(
+              'SmartGatePass',
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 22),
+            ),
           ),
         ],
       ),
@@ -162,13 +166,16 @@ class _GateHomeState extends State<GateHome> {
                         size: 18,
                       ),
                       SizedBox(width: 6),
-                      Text(
-                        'OFFLINE GATE OPERATIONS',
-                        style: TextStyle(
-                          color: Color(0xFF9CE5CD),
-                          fontWeight: FontWeight.w600,
-                          fontSize: 11,
-                          letterSpacing: 1,
+                      Flexible(
+                        child: Text(
+                          'OFFLINE GATE OPERATIONS',
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Color(0xFF9CE5CD),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 11,
+                            letterSpacing: 1,
+                          ),
                         ),
                       ),
                     ],
@@ -187,20 +194,26 @@ class _GateHomeState extends State<GateHome> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _StatItem(
-                        value: _loading ? '—' : '${_stats['active']}',
-                        label: 'Inside',
-                        color: const Color(0xFFF4D57A),
+                      Expanded(
+                        child: _StatItem(
+                          value: _loading ? '—' : '${_stats['active']}',
+                          label: 'Inside',
+                          color: const Color(0xFFF4D57A),
+                        ),
                       ),
-                      _StatItem(
-                        value: _loading ? '—' : '${_stats['total']}',
-                        label: 'Total Today',
-                        color: Colors.white,
+                      Expanded(
+                        child: _StatItem(
+                          value: _loading ? '—' : '${_stats['total']}',
+                          label: 'Total Today',
+                          color: Colors.white,
+                        ),
                       ),
-                      _StatItem(
-                        value: _loading ? '—' : '${_stats['total']! - _stats['active']!}',
-                        label: 'Exited',
-                        color: const Color(0xFF9CE5CD),
+                      Expanded(
+                        child: _StatItem(
+                          value: _loading ? '—' : '${_stats['total']! - _stats['active']!}',
+                          label: 'Exited',
+                          color: const Color(0xFF9CE5CD),
+                        ),
                       ),
                     ],
                   ),
@@ -244,6 +257,7 @@ class _GateHomeState extends State<GateHome> {
                 const Expanded(
                   child: Text(
                     'Latest active passes',
+                    overflow: TextOverflow.ellipsis, // FIX: Prevents row overflow
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w700,
@@ -304,6 +318,7 @@ class _StatItem extends StatelessWidget {
         ),
         Text(
           label,
+          overflow: TextOverflow.ellipsis, // FIX: Prevents label overflow
           style: const TextStyle(color: Colors.white70, fontSize: 12),
         ),
       ],
@@ -720,7 +735,6 @@ class _RecordsPageState extends State<RecordsPage> {
       _error = null;
     });
     try {
-      // Fetch ALL records so exited vehicles still appear
       final records = await widget.repository.allRecords(query: _query.text);
       if (mounted && request == _request) {
         setState(() {
@@ -761,7 +775,6 @@ class _RecordsPageState extends State<RecordsPage> {
           ),
         );
       } else {
-        // Show details of a closed record
         await showDialog(
           context: context,
           builder: (context) => AlertDialog(

@@ -4,7 +4,7 @@
 
 By integrating on-device Optical Character Recognition (OCR), QR code ticketing, local SQLite database management, and Bluetooth thermal printing, SmartGatePass replaces inefficient manual paper registers with a secure, digital audit trail.
 
-## ✨ Key Features
+## Key Features
 
 *   **Offline-First Architecture:** Core operations (OCR, QR generation/scanning, database) work entirely without internet connectivity.
 *   **On-Device OCR:** Utilizes Google ML Kit to capture and recognize vehicle license plates.
@@ -14,7 +14,7 @@ By integrating on-device Optical Character Recognition (OCR), QR code ticketing,
 *   **Audit Trail:** Automatically calculates the duration of stay and logs the exact entry/exit timestamps.
 *   **Authentication:** Secure login portal for security officers.
 
-## 🛠️ Technology Stack
+## Technology Stack
 
 *   **Framework:** Flutter & Dart
 *   **OCR Engine:** Google ML Kit (Text Recognition)
@@ -23,7 +23,7 @@ By integrating on-device Optical Character Recognition (OCR), QR code ticketing,
 *   **Printing:** `print_bluetooth_thermal` & `esc_pos_utils_plus`
 *   **State Management:** Standard Flutter Stateful Widgets
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 *   Flutter SDK (3.13.0 or higher)
@@ -46,11 +46,11 @@ Navigate to the project directory:
 
 ```bash
 flutter run
-🔐 Default Login Credentials
+Default Login Credentials
 Username: admin
 Password: 1234
 
-👨‍🎓 Author
+Author
 Abdullahi Babagana
 B.Sc. Software Engineering
 Al-Ansar University, Maiduguri
