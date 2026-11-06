@@ -4,25 +4,26 @@ class VehicleLog {
     required this.plateNumber,
     required this.entryTimestamp,
     this.exitTimestamp,
+    this.category = 'Visitor',
+    this.syncStatus = 'PENDING',
   });
 
   final String ticketId;
   final String plateNumber;
   final DateTime entryTimestamp;
   final DateTime? exitTimestamp;
-  
-  bool get isActive => exitTimestamp == null;
+  final String category;
+  final String syncStatus;
 
-  // NEW: Calculate duration
+  bool get isActive => exitTimestamp == null;
+  bool get isSynced => syncStatus == 'SYNCED';
+
   String get durationString {
     if (exitTimestamp == null) return 'Ongoing';
     final diff = exitTimestamp!.difference(entryTimestamp);
     final hours = diff.inHours;
     final minutes = diff.inMinutes.remainder(60);
-    
-    if (hours > 0) {
-      return '${hours}h ${minutes}m';
-    }
+    if (hours > 0) return '${hours}h ${minutes}m';
     return '${minutes}m';
   }
 
@@ -33,6 +34,8 @@ class VehicleLog {
     exitTimestamp: row['Exit_Timestamp'] == null
         ? null
         : DateTime.parse(row['Exit_Timestamp'] as String).toLocal(),
+    category: (row['Category'] as String?) ?? 'Visitor',
+    syncStatus: (row['Sync_Status'] as String?) ?? 'PENDING',
   );
 }
 
@@ -47,7 +50,6 @@ String? validatePlate(String? value) {
   return null;
 }
 
-// Suggestions only: OCR never authorizes entry or exit.
 List<String> plateCandidates(String text) {
   final candidates = <String>{};
   for (final line in text.split('\n')) {

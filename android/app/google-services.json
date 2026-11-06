@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "193405010790",
+    "project_id": "smartgatepass-3bad8",
+    "storage_bucket": "smartgatepass-3bad8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:193405010790:android:6ab6486893b2b05e5bfea7",
+        "android_client_info": {
+          "package_name": "com.example.smartgatepass"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBMZXwkBfs5DabXtqU5GJvLPU2D1YDtPJE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,11 +1,19 @@
 import 'package:flutter/material.dart';
 
+import '../data/vehicle_repository.dart';
+
 const ink = Color(0xFF142D39);
 const teal = Color(0xFF087F78);
 
 class LoginScreen extends StatefulWidget {
-  final VoidCallback onLogin;
-  const LoginScreen({super.key, required this.onLogin});
+  final VehicleRepository repository;
+  final Function(String role) onLogin;
+
+  const LoginScreen({
+    super.key,
+    required this.repository,
+    required this.onLogin,
+  });
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -15,16 +23,36 @@ class _LoginScreenState extends State<LoginScreen> {
   final _userController = TextEditingController();
   final _passwordController = TextEditingController();
   String? _error;
+  bool _busy = false;
 
-  void _submit() {
+  Future<void> _submit() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+
     final username = _userController.text.trim().toLowerCase();
     final password = _passwordController.text.trim();
 
-    // Hardcoded credentials for FYP prototype
-    if (username == 'admin' && password == '1234') {
-      widget.onLogin();
+    if (username.isEmpty || password.isEmpty) {
+      setState(() {
+        _error = 'Enter username and password.';
+        _busy = false;
+      });
+      return;
+    }
+
+    final role = await widget.repository.login(username, password);
+
+    if (!mounted) return;
+
+    if (role != null) {
+      widget.onLogin(role);
     } else {
-      setState(() => _error = 'Invalid credentials. Hint: admin / 1234');
+      setState(() {
+        _error = 'Invalid credentials.';
+        _busy = false;
+      });
     }
   }
 
@@ -57,14 +85,15 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Security Officer Portal',
+                'Security Portal',
                 style: TextStyle(color: Colors.white70, fontSize: 16),
               ),
               const SizedBox(height: 40),
 
-              // Username Field
+              // Username
               TextField(
                 controller: _userController,
+                enabled: !_busy,
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
                   hintText: 'Username',
@@ -81,9 +110,10 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Password Field
+              // Password
               TextField(
                 controller: _passwordController,
+                enabled: !_busy,
                 obscureText: true,
                 style: const TextStyle(
                   fontSize: 20,
@@ -107,7 +137,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   errorText: _error,
                 ),
-                onSubmitted: (_) => _submit(),
+                onSubmitted: (_) => _busy ? null : _submit(),
               ),
               const SizedBox(height: 24),
 
@@ -122,13 +152,22 @@ class _LoginScreenState extends State<LoginScreen> {
                       borderRadius: BorderRadius.circular(14),
                     ),
                   ),
-                  onPressed: _submit,
-                  child: const Text(
-                    'Login',
-                    style:
-                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
+                  onPressed: _busy ? null : _submit,
+                  child: _busy
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text(
+                          'Login',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Default: admin/1234 or guard/1234',
+                style: TextStyle(color: Colors.white30, fontSize: 12),
               ),
             ],
           ),

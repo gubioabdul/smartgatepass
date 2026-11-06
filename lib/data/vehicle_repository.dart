@@ -1,7 +1,7 @@
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
-import 'package:uuid/uuid.dart'; // Added for unique ID generation
+import 'package:uuid/uuid.dart';
 
 import '../domain/vehicle_log.dart';
 
@@ -9,9 +9,12 @@ abstract class VehicleRepository {
   Future<List<VehicleLog>> activeRecords({String query = ''});
   Future<List<VehicleLog>> allRecords({String query = ''});
   Future<VehicleLog?> byTicket(String ticketId);
-  Future<VehicleLog> registerEntry(String plate);
+  Future<VehicleLog> registerEntry(String plate, {String category = 'Visitor'});
   Future<VehicleLog> recordExit(String ticketId, String verifiedPlate);
   Future<Map<String, int>> getDashboardStats();
+  Future<String?> login(String username, String password);
+  Future<List<VehicleLog>> pendingRecords();
+  Future<void> markAsSynced(String ticketId);
   Future<void> close();
 }
 
@@ -31,7 +34,7 @@ class SqliteVehicleRepository implements VehicleRepository {
     final db = await engine.openDatabase(
       location,
       options: OpenDatabaseOptions(
-        version: 1,
+        version: 5,
         onCreate: (db, version) async {
           await db.execute('''CREATE TABLE Vehicle_Log (
           Ticket_ID TEXT PRIMARY KEY NOT NULL,
@@ -39,19 +42,77 @@ class SqliteVehicleRepository implements VehicleRepository {
           Entry_Timestamp TEXT NOT NULL,
           Exit_Timestamp TEXT,
           Status TEXT NOT NULL CHECK (Status IN ('ACTIVE','CLOSED')),
-          CHECK ((Status = 'ACTIVE' AND Exit_Timestamp IS NULL) OR
-                 (Status = 'CLOSED' AND Exit_Timestamp IS NOT NULL))
+          Category TEXT NOT NULL DEFAULT 'Visitor',
+          Sync_Status TEXT NOT NULL DEFAULT 'PENDING'
         )''');
           await db.execute(
             "CREATE UNIQUE INDEX one_active_plate ON Vehicle_Log(Plate_Number) WHERE Status = 'ACTIVE'",
           );
-          await db.execute(
-            'CREATE INDEX record_status ON Vehicle_Log(Status, Entry_Timestamp)',
-          );
+          await db.execute('''CREATE TABLE Users (
+            Username TEXT PRIMARY KEY NOT NULL,
+            Password TEXT NOT NULL,
+            Role TEXT NOT NULL
+          )''');
+          await db.insert('Users', {'Username': 'admin', 'Password': '1234', 'Role': 'admin'});
+          await db.insert('Users', {'Username': 'guard', 'Password': '1234', 'Role': 'guard'});
+        },
+        onUpgrade: (db, oldVersion, newVersion) async {
+          if (oldVersion < 5) {
+            // Add new columns if migrating from V1-V4
+            final cols = await db.rawQuery("PRAGMA table_info(Vehicle_Log)");
+            final names = cols.map((c) => c['name']).toList();
+            if (!names.contains('Category')) {
+              await db.execute("ALTER TABLE Vehicle_Log ADD COLUMN Category TEXT NOT NULL DEFAULT 'Visitor'");
+            }
+            if (!names.contains('Sync_Status')) {
+              await db.execute("ALTER TABLE Vehicle_Log ADD COLUMN Sync_Status TEXT NOT NULL DEFAULT 'PENDING'");
+            }
+            await db.execute('''CREATE TABLE IF NOT EXISTS Users (
+              Username TEXT PRIMARY KEY NOT NULL,
+              Password TEXT NOT NULL,
+              Role TEXT NOT NULL
+            )''');
+            await db.insert('Users', {'Username': 'admin', 'Password': '1234', 'Role': 'admin'},
+                conflictAlgorithm: ConflictAlgorithm.ignore);
+            await db.insert('Users', {'Username': 'guard', 'Password': '1234', 'Role': 'guard'},
+                conflictAlgorithm: ConflictAlgorithm.ignore);
+          }
         },
       ),
     );
     return SqliteVehicleRepository(db);
+  }
+
+  @override
+  Future<String?> login(String username, String password) async {
+    final rows = await db.query(
+      'Users',
+      where: 'Username = ? AND Password = ?',
+      whereArgs: [username.trim().toLowerCase(), password.trim()],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return rows.first['Role'] as String?;
+  }
+
+  @override
+  Future<List<VehicleLog>> pendingRecords() async {
+    final rows = await db.query(
+      'Vehicle_Log',
+      where: "Sync_Status = 'PENDING'",
+      orderBy: 'Entry_Timestamp ASC',
+    );
+    return rows.map(VehicleLog.fromMap).toList();
+  }
+
+  @override
+  Future<void> markAsSynced(String ticketId) async {
+    await db.update(
+      'Vehicle_Log',
+      {'Sync_Status': 'SYNCED'},
+      where: 'Ticket_ID = ?',
+      whereArgs: [ticketId],
+    );
   }
 
   @override
@@ -88,7 +149,7 @@ class SqliteVehicleRepository implements VehicleRepository {
   }
 
   @override
-  Future<VehicleLog> registerEntry(String plate) async {
+  Future<VehicleLog> registerEntry(String plate, {String category = 'Visitor'}) async {
     final validation = validatePlate(plate);
     if (validation != null) throw GateException(validation);
     final normalized = normalizePlate(plate);
@@ -104,13 +165,13 @@ class SqliteVehicleRepository implements VehicleRepository {
         );
       }
       final now = _now();
-      // FIX: Appended 4 random UUID characters to guarantee uniqueness
       final formattedId = 'SGP-${DateFormat('yyMMdd').format(now)}-${DateFormat('HHmmss').format(now)}${const Uuid().v4().substring(0, 4).toUpperCase()}';
-      
+
       final record = VehicleLog(
         ticketId: formattedId,
         plateNumber: normalized,
         entryTimestamp: now,
+        category: category,
       );
       await txn.insert('Vehicle_Log', {
         'Ticket_ID': record.ticketId,
@@ -118,6 +179,8 @@ class SqliteVehicleRepository implements VehicleRepository {
         'Entry_Timestamp': record.entryTimestamp.toUtc().toIso8601String(),
         'Exit_Timestamp': null,
         'Status': 'ACTIVE',
+        'Category': record.category,
+        'Sync_Status': 'PENDING',
       });
       return record;
     });
@@ -165,6 +228,8 @@ class SqliteVehicleRepository implements VehicleRepository {
         plateNumber: record.plateNumber,
         entryTimestamp: record.entryTimestamp,
         exitTimestamp: exit,
+        category: record.category,
+        syncStatus: record.syncStatus,
       );
     });
   }
@@ -173,10 +238,11 @@ class SqliteVehicleRepository implements VehicleRepository {
   Future<Map<String, int>> getDashboardStats() async {
     final activeRes = await db.rawQuery("SELECT COUNT(*) FROM Vehicle_Log WHERE Status = 'ACTIVE'");
     final totalRes = await db.rawQuery("SELECT COUNT(*) FROM Vehicle_Log");
-    
+    final pendingRes = await db.rawQuery("SELECT COUNT(*) FROM Vehicle_Log WHERE Sync_Status = 'PENDING'");
     return {
       'active': Sqflite.firstIntValue(activeRes) ?? 0,
       'total': Sqflite.firstIntValue(totalRes) ?? 0,
+      'pending': Sqflite.firstIntValue(pendingRes) ?? 0,
     };
   }
 

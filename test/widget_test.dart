@@ -7,7 +7,7 @@ import 'package:smartgatepass/services/gate_hardware.dart';
 
 class MemoryRepository implements VehicleRepository {
   final records = <VehicleLog>[];
-  
+
   @override
   Future<List<VehicleLog>> activeRecords({String query = ''}) async => records
       .where(
@@ -19,14 +19,13 @@ class MemoryRepository implements VehicleRepository {
       .toList();
 
   @override
-  Future<List<VehicleLog>> allRecords({String query = ''}) async {
-    return records;
-  }
+  Future<List<VehicleLog>> allRecords({String query = ''}) async => records;
 
   @override
   Future<Map<String, int>> getDashboardStats() async {
     final active = records.where((r) => r.isActive).length;
-    return {'active': active, 'total': records.length};
+    final pending = records.where((r) => r.syncStatus == 'PENDING').length;
+    return {'active': active, 'total': records.length, 'pending': pending};
   }
 
   @override
@@ -38,7 +37,10 @@ class MemoryRepository implements VehicleRepository {
   }
 
   @override
-  Future<VehicleLog> registerEntry(String plate) async {
+  Future<VehicleLog> registerEntry(
+    String plate, {
+    String category = 'Visitor',
+  }) async {
     final normalized = normalizePlate(plate);
     if (records.any((r) => r.isActive && r.plateNumber == normalized)) {
       throw const GateException('Duplicate entry');
@@ -47,6 +49,7 @@ class MemoryRepository implements VehicleRepository {
       ticketId: 'SGP-261031-120000',
       plateNumber: normalized,
       entryTimestamp: DateTime(2026, 10, 31, 12),
+      category: category,
     );
     records.add(record);
     return record;
@@ -63,9 +66,39 @@ class MemoryRepository implements VehicleRepository {
       plateNumber: record.plateNumber,
       entryTimestamp: record.entryTimestamp,
       exitTimestamp: DateTime(2026, 10, 31, 13),
+      category: record.category,
+      syncStatus: record.syncStatus,
     );
     records[records.indexOf(record)] = closed;
     return closed;
+  }
+
+  @override
+  Future<String?> login(String username, String password) async {
+    if (username == 'admin' && password == '1234') return 'admin';
+    if (username == 'guard' && password == '1234') return 'guard';
+    return null;
+  }
+
+  @override
+  Future<List<VehicleLog>> pendingRecords() async {
+    return records.where((r) => r.syncStatus == 'PENDING').toList();
+  }
+
+  @override
+  Future<void> markAsSynced(String ticketId) async {
+    for (var i = 0; i < records.length; i++) {
+      if (records[i].ticketId == ticketId) {
+        records[i] = VehicleLog(
+          ticketId: records[i].ticketId,
+          plateNumber: records[i].plateNumber,
+          entryTimestamp: records[i].entryTimestamp,
+          exitTimestamp: records[i].exitTimestamp,
+          category: records[i].category,
+          syncStatus: 'SYNCED',
+        );
+      }
+    }
   }
 
   @override
@@ -100,7 +133,13 @@ Future<void> tapVisible(WidgetTester tester, Finder finder) async {
   await tester.pumpAndSettle();
 }
 
-Future<void> login(WidgetTester tester) async {
+Future<void> loginAsGuard(WidgetTester tester) async {
+  await tester.enterText(find.byType(TextField).at(0), 'guard');
+  await tester.enterText(find.byType(TextField).at(1), '1234');
+  await tapVisible(tester, find.text('Login'));
+}
+
+Future<void> loginAsAdmin(WidgetTester tester) async {
   await tester.enterText(find.byType(TextField).at(0), 'admin');
   await tester.enterText(find.byType(TextField).at(1), '1234');
   await tapVisible(tester, find.text('Login'));
@@ -110,7 +149,6 @@ void main() {
   testWidgets(
     'manual entry, print failure, and verified exit preserve record lifecycle',
     (tester) async {
-      // FIX: Use a tall phone-sized surface so all buttons are visible
       tester.view.physicalSize = const Size(400, 1200);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -125,10 +163,9 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      
-      // Login
-      await login(tester);
-      
+
+      await loginAsGuard(tester);
+
       expect(find.text('SmartGatePass'), findsOneWidget);
       await tapVisible(tester, find.text('Vehicle Entry'));
       await tester.enterText(find.byType(TextFormField), 'abc-123de');
@@ -142,8 +179,7 @@ void main() {
       await tapVisible(tester, find.text('Save & Print'));
       expect(repository.records, hasLength(1));
       expect(find.text('ABC123DE'), findsOneWidget);
-      
-      // Try to print (should fail)
+
       await tapVisible(tester, find.text('Print gate pass'));
       await tapVisible(tester, find.text('Test printer'));
       expect(
@@ -151,17 +187,15 @@ void main() {
         findsOneWidget,
       );
       expect(repository.records.single.isActive, isTrue);
-      
-      // Exit Vehicle (no text field, just checkbox)
+
       await tapVisible(tester, find.text('Verify vehicle exit'));
-      
-      await tester.tap(find.byType(Checkbox)); 
+      await tester.tap(find.byType(Checkbox));
       await tester.pumpAndSettle();
-      
+
       await tapVisible(tester, find.text('Record exit & close pass'));
       await tapVisible(tester, find.text('Cancel'));
       expect(repository.records.single.isActive, isTrue);
-      
+
       await tapVisible(tester, find.text('Record exit & close pass'));
       await tapVisible(tester, find.text('Confirm exit'));
       expect(repository.records.single.isActive, isFalse);
@@ -187,9 +221,9 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      
-      await login(tester);
-      
+
+      await loginAsGuard(tester);
+
       await tapVisible(tester, find.text('Vehicle Entry'));
       await tapVisible(tester, find.text('Capture plate with camera'));
       expect(
@@ -220,9 +254,9 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    
-    await login(tester);
-    
+
+    await loginAsGuard(tester);
+
     expect(tester.takeException(), isNull);
   });
 }
